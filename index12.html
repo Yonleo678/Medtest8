@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>营销推广数据汇总系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        gold: {
+                            50: '#FAF7F0',
+                            100: '#F3EAD3',
+                            200: '#E6D4A7',
+                            500: '#C5A059',
+                            600: '#B28E47',
+                            700: '#8F7135',
+                        },
+                        silver: {
+                            100: '#F5F5F7',
+                            200: '#E5E5EA',
+                            300: '#D1D1D6',
+                            800: '#1C1C1E'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans SC', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'premium': '0 4px 30px rgba(0, 0, 0, 0.03)',
+                        'premium-hover': '0 10px 40px rgba(197, 160, 89, 0.08)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #FBFBFC;
+            color: #1D1D1F;
+            -webkit-font-smoothing: antialiased;
+        }
+        /* 自定义滚动条风格 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F5F5F7;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E6D4A7;
+            border-radius: 3px;
+        }
+        /* 隐藏动画闪烁 */
+        .modal-animate {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="syncProgressBar" class="fixed top-0 left-0 w-full h-1 bg-gold-200 z-50 hidden overflow-hidden">
+        <div class="h-full bg-gold-600 animate-pulse" style="width: 70%; transition: width 1s ease-in-out;"></div>
+    </div>
+
+    <div id="readonlyBanner" class="bg-amber-50 border-b border-amber-200 text-amber-800 text-xs py-2 px-4 text-center hidden font-medium">
+        <i class="fa-solid fa-eye mr-1"></i> 当前处于「只读模式」，无法修改任何核心数据。
+    </div>
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-40 border-b border-silver-200 px-4 lg:px-8 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 bg-gradient-to-tr from-gold-600 to-gold-200 rounded-xl flex items-center justify-center text-white shadow-md">
+                <i class="fa-solid fa-chart-line text-sm"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-tight text-gray-900">营销推广数据汇总系统</h1>
+                <p class="text-[10px] text-gray-400">Premium Analytics Dashboard</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-2 md:space-x-4">
+            <span id="roleBadge" class="text-xs bg-gold-50 text-gold-700 border border-gold-200 px-2.5 py-1 rounded-full font-medium">
+                <i class="fa-solid fa-user-shield mr-1"></i>管理员模式
+            </span>
+            <button onclick="triggerManualSync()" class="p-2 text-gray-500 hover:text-gold-600 hover:bg-gold-50 rounded-lg transition-colors relative" title="手动同步云端">
+                <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+                <span id="syncDot" class="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full hidden"></span>
+            </button>
+            <button onclick="switchTab('settings')" class="p-2 text-gray-500 hover:text-gold-600 hover:bg-gold-50 rounded-lg transition-colors" title="系统设置">
+                <i class="fa-solid fa-gear text-sm"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col lg:flex-row">
+        <nav class="bg-white lg:w-64 border-r border-silver-200 p-2 lg:p-4 flex flex-row lg:flex-col space-x-1 lg:space-x-0 lg:space-y-1 overflow-x-auto lg:overflow-x-visible whitespace-nowrap lg:whitespace-normal">
+            <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left bg-gold-50 text-gold-700 font-semibold shadow-premium">
+                <i class="fa-solid fa-gauge w-5"></i><span>控制台总览</span>
+            </button>
+            <button id="tab-btn-platforms" onclick="switchTab('platforms')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50">
+                <i class="fa-solid fa-network-wired w-5"></i><span>多平台与账户管理</span>
+            </button>
+            <button id="tab-btn-expenses" onclick="switchTab('expenses')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50">
+                <i class="fa-solid fa-wallet w-5"></i><span>推广费用记录</span>
+            </button>
+            <button id="tab-btn-visits" onclick="switchTab('visits')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50">
+                <i class="fa-solid fa-hospital-user w-5"></i><span>初诊数据录入</span>
+            </button>
+            <button id="tab-btn-recycle" onclick="switchTab('recycle')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50">
+                <i class="fa-solid fa-trash-can w-5"></i><span>数据回收站</span>
+            </button>
+            <button id="tab-btn-logs" onclick="switchTab('logs')" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50">
+                <i class="fa-solid fa-clipboard-list w-5"></i><span>系统日志记录</span>
+            </button>
+        </nav>
+
+        <main class="flex-1 p-4 lg:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+            
+            <section id="view-dashboard" class="space-y-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-silver-200 shadow-premium">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800">全局核心指标动态统计</h2>
+                        <p class="text-xs text-gray-400">根据时间跨度自动加权计算</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-medium text-gray-500"><i class="fa-solid fa-filter mr-1"></i>筛选月份:</span>
+                        <div id="monthFilterContainer" class="flex flex-wrap gap-1.5">
+                            </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium hover:shadow-premium-hover transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">总推广花费</span>
+                            <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center text-xs group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-yen-sign"></i>
+                            </div>
+                        </div>
+                        <div id="kpi-total-expense" class="text-2xl font-bold text-gray-900">¥0.00</div>
+                        <div class="text-[11px] text-gray-400 mt-1">当前筛选时间内的所有平台渠道支出总额</div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium hover:shadow-premium-hover transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">月平均花费</span>
+                            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-calendar-day"></i>
+                            </div>
+                        </div>
+                        <div id="kpi-avg-expense" class="text-2xl font-bold text-gray-900">¥0.00</div>
+                        <div class="text-[11px] text-gray-400 mt-1">按独立有效自然月均摊后的推广数据</div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium hover:shadow-premium-hover transition-all group">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">推广费用投产比 (ROI)</span>
+                            <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs group-hover:scale-110 transition-transform">
+                                <i class="fa-solid fa-scale-balanced"></i>
+                            </div>
+                        </div>
+                        <div id="kpi-roi" class="text-2xl font-bold text-gray-900">¥0.00</div>
+                        <div class="text-[11px] text-gray-400 mt-1">计算公式：推广总费用 ➗ 初诊人数</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium lg:col-span-1 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-sm font-bold text-gray-800">初诊类别消费及分布占比</h3>
+                                <button onclick="zoomPieChart()" class="text-xs text-gold-600 hover:underline"><i class="fa-solid fa-maximize mr-1"></i>全屏互动</button>
+                            </div>
+                            <p class="text-xs text-gray-400 mb-4">展示各主要诊疗分类的金额规模</p>
+                        </div>
+                        <div class="relative w-full aspect-square max-h-[260px] flex items-center justify-center mx-auto cursor-pointer" onclick="zoomPieChart()">
+                            <canvas id="categoryPieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-sm font-bold text-gray-800">快捷闭环：一键录入客流及出诊</h3>
+                            <span class="text-xs text-gray-400">填补当前漏斗底层数据</span>
+                        </div>
+                        <form id="quickVisitForm" onsubmit="handleQuickVisit(event)" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">选择录入月份</label>
+                                    <input type="month" id="quick-visit-date" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 focus:outline-none focus:border-gold-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 mb-1">初诊核心大类</label>
+                                    <select id="quick-visit-cat" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-gold-500">
+                                        <option value="脱毛护理">脱毛护理</option>
+                                        <option value="皮肤项目">皮肤项目</option>
+                                        <option value="注射项目">注射项目</option>
+                                        <option value="手术项目">手术项目</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-silver-100 rounded-xl space-y-3">
+                                <div class="text-[11px] font-bold text-gold-700"><i class="fa-solid fa-list-check mr-1"></i>绑定高转化细分项目</div>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <input type="text" id="quick-item-name" placeholder="子项目名称" class="col-span-1 text-xs border border-silver-200 rounded-lg px-2 py-1.5 bg-white">
+                                    <input type="number" id="quick-item-count" placeholder="人数" min="1" class="col-span-1 text-xs border border-silver-200 rounded-lg px-2 py-1.5 bg-white">
+                                    <input type="number" id="quick-item-price" placeholder="单客金额" min="0" class="col-span-1 text-xs border border-silver-200 rounded-lg px-2 py-1.5 bg-white">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full bg-gradient-to-r from-gold-600 to-gold-500 hover:from-gold-700 text-white text-xs font-medium py-2.5 rounded-xl transition-all shadow-sm">
+                                <i class="fa-solid fa-plus mr-1"></i>注入闭环诊疗记录并实时重算
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-platforms" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800">运营多平台与账户架构控制</h2>
+                            <p class="text-xs text-gray-400">支持全渠道汇总数据及行内直接便捷编辑</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="toggleOmniChannel()" class="bg-silver-100 hover:bg-silver-200 text-gray-700 text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-globe mr-1"></i>查看全渠道汇总报告
+                            </button>
+                            <button onclick="openPlatformModal()" class="admin-action bg-gold-600 hover:bg-gold-700 text-white text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-plus mr-1"></i>新增平台渠道
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="omniChannelWrapper" class="mb-6 p-4 bg-gold-50/50 border border-gold-200/60 rounded-xl hidden">
+                        <div class="text-xs font-bold text-gold-700 mb-2"><i class="fa-solid fa-chart-pie mr-1"></i>全渠道实时数据透视汇总</div>
+                        <div id="omniChannelContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-silver-100 text-gray-500 uppercase font-semibold">
+                                <tr>
+                                    <th class="p-3 rounded-l-lg">平台唯一编码</th>
+                                    <th class="p-3">主平台媒体名称 (点击单元格直接编辑)</th>
+                                    <th class="p-3">绑定运营账号主体 (点击单元格直接编辑)</th>
+                                    <th class="p-3 text-right rounded-r-lg admin-action">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="platformTableBody" class="divide-y divide-silver-200">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-expenses" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800">全媒体渠道推广费用记录矩阵</h2>
+                            <p class="text-xs text-gray-400">细化到投放日期的基础财务台账</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <input type="text" id="searchExpense" oninput="renderExpenses()" placeholder="搜索备注/平台..." class="text-xs border border-silver-200 rounded-xl px-3 py-2 focus:outline-none w-full md:w-48">
+                            <button onclick="bulkDeleteExpenses()" class="admin-action bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-trash-arrow-up mr-1"></i>批量删除
+                            </button>
+                            <button onclick="openExpenseModal()" class="admin-action bg-gold-600 hover:bg-gold-700 text-white text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-plus mr-1"></i>添加推广流水
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-silver-100 text-gray-500 font-semibold">
+                                <tr>
+                                    <th class="p-3 text-center w-10"><input type="checkbox" id="selectAllExpenses" onchange="toggleSelectAll('expense')"></th>
+                                    <th class="p-3">产生日期</th>
+                                    <th class="p-3">平台账户</th>
+                                    <th class="p-3">单笔出账金额</th>
+                                    <th class="p-3">核心备注</th>
+                                    <th class="p-3 text-right rounded-r-lg">管理动作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="expenseTableBody" class="divide-y divide-silver-200"></tbody>
+                        </table>
+                    </div>
+                    <div id="expensePagination" class="flex justify-between items-center pt-4 text-xs text-gray-500"></div>
+                </div>
+            </section>
+
+            <section id="view-visits" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800">客户初诊结构化台账管理</h2>
+                            <p class="text-xs text-gray-400">严密契合“细分明细项目”与多点级联计算体系</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="exportVisitsToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-file-excel mr-1"></i>导出明细为 Excel
+                            </button>
+                            <button onclick="openVisitModal()" class="admin-action bg-gold-600 hover:bg-gold-700 text-white text-xs px-3 py-2 rounded-xl transition-all font-medium">
+                                <i class="fa-solid fa-plus mr-1"></i>规范化新建初诊件
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-silver-100 text-gray-500 font-semibold">
+                                <tr>
+                                    <th class="p-3 rounded-l-lg">发生月份</th>
+                                    <th class="p-3">核心分类</th>
+                                    <th class="p-3">包含的子项目级联细则明细</th>
+                                    <th class="p-3">合计承载总人次</th>
+                                    <th class="p-3">综合财务总结算额</th>
+                                    <th class="p-3 text-right rounded-r-lg">管理动作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="visitTableBody" class="divide-y divide-silver-200"></tbody>
+                        </table>
+                    </div>
+                    <div id="visitPagination" class="flex justify-between items-center pt-4 text-xs text-gray-500"></div>
+                </div>
+            </section>
+
+            <section id="view-recycle" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium">
+                    <h2 class="text-base font-bold text-rose-700 mb-2"><i class="fa-solid fa-trash-can-arrow-up mr-2"></i>安全数据阻尼拦截回收站</h2>
+                    <p class="text-xs text-gray-400 mb-6">防止一线业务人员高危误删，支持无损原位一键追溯恢复。</p>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-700 mb-2">已拦截的推广流水记录</h3>
+                            <div class="overflow-x-auto max-h-48 border border-silver-200 rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <tbody id="recycleExpenseBody" class="divide-y divide-silver-200"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-700 mb-2">已拦截的初诊档案包</h3>
+                            <div class="overflow-x-auto max-h-48 border border-silver-200 rounded-xl">
+                                <table class="w-full text-left text-xs">
+                                    <tbody id="recycleVisitBody" class="divide-y divide-silver-200"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="view-logs" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h2 class="text-base font-bold text-gray-800">全量合规操作审计日志追踪</h2>
+                            <p class="text-xs text-gray-400">记录系统生命周期内产生的所有行为实体</p>
+                        </div>
+                        <button onclick="clearSystemLogs()" class="admin-action text-rose-600 hover:underline text-xs"><i class="fa-solid fa-broom mr-1"></i>清空本地日志</button>
+                    </div>
+                    <div id="logConsoleContainer" class="bg-gray-900 text-gray-300 font-mono text-[11px] p-4 rounded-xl space-y-1.5 h-96 overflow-y-auto">
+                        </div>
+                </div>
+            </section>
+
+            <section id="view-settings" class="space-y-6 hidden">
+                <div class="bg-white p-6 rounded-2xl border border-silver-200 shadow-premium max-w-2xl">
+                    <h2 class="text-base font-bold text-gray-800 mb-2"><i class="fa-solid fa-sliders mr-2"></i>核心系统连接与架构权能配置</h2>
+                    <p class="text-xs text-gray-400 mb-6">配置云端同步鉴权凭据以及快捷安全分发令牌</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Gist 个人访问令牌 (Token)</label>
+                            <input type="password" id="cfg-github-token" placeholder="ghp_********************************" class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Gist 唯一标识码 (Gist ID)</label>
+                            <input type="text" id="cfg-gist-id" placeholder="填写后一次性自动持久化保存" class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2.5 focus:outline-none focus:border-gold-500">
+                        </div>
+                        <div class="p-3 bg-silver-100 rounded-xl flex items-center justify-between">
+                            <span class="text-xs text-gray-500">云存储策略: 每次数据变动将联动此配置进行增量实时云同步。</span>
+                            <button onclick="saveCloudSettings()" class="bg-gold-600 hover:bg-gold-700 text-white text-xs px-4 py-2 rounded-lg transition-all">保存配置</button>
+                        </div>
+                        
+                        <hr class="border-silver-200 my-4">
+                        
+                        <div>
+                            <h3 class="text-xs font-bold text-gray-800 mb-3"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>跨域超级高保真数据分发链接生成器</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="p-4 border border-gold-100 bg-gold-50/30 rounded-xl">
+                                    <div class="text-xs font-bold text-gold-700 mb-1">数据魔术链接 (Bookmarklet)</div>
+                                    <p class="text-[11px] text-gray-400 mb-3">将当前全套配置参数直接注入，点击后免配置一键加载。</p>
+                                    <button onclick="generateMagicLink('config')" class="w-full bg-gold-500 hover:bg-gold-600 text-white text-xs py-2 rounded-lg transition-all">生成并复制魔术链接</button>
+                                </div>
+                                <div class="p-4 border border-silver-200 bg-silver-100/50 rounded-xl">
+                                    <div class="text-xs font-bold text-gray-800 mb-1">仅读只读模式共享链接</div>
+                                    <p class="text-[11px] text-gray-400 mb-3">生成一个自带降权逻辑的安全链接，仅供上级或审计查阅。</p>
+                                    <button onclick="generateMagicLink('readonly')" class="w-full bg-silver-800 hover:bg-black text-white text-xs py-2 rounded-lg transition-all">生成并复制只读共享链接</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <div id="modal-platform" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden modal-animate opacity-0">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl scale-95 transition-transform duration-300">
+            <h3 id="platformModalTitle" class="text-sm font-bold text-gray-900 mb-4">平台渠道实体注册</h3>
+            <form id="platformForm" onsubmit="savePlatformForm(event)" class="space-y-4">
+                <input type="hidden" id="p-id">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">主媒体物理通道名称</label>
+                    <input type="text" id="p-name" placeholder="如：美团、抖音、小红书" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">绑定商户线上账号主体</label>
+                    <input type="text" id="p-account" placeholder="如：北京医美旗舰总店" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 focus:outline-none">
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closePlatformModal()" class="px-4 py-2 border border-silver-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-gold-600 hover:bg-gold-700 text-white rounded-xl text-xs font-medium">确认保全</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-expense" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden modal-animate opacity-0">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl scale-95 transition-transform duration-300">
+            <h3 id="expenseModalTitle" class="text-sm font-bold text-gray-900 mb-4">创建记账明细</h3>
+            <form id="expenseForm" onsubmit="saveExpenseForm(event)" class="space-y-4">
+                <input type="hidden" id="e-id">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">费用记账日期</label>
+                    <input type="date" id="e-date" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">归属线上渠道实体</label>
+                    <select id="e-platform" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 bg-white"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">单笔出账核算金额</label>
+                    <input type="number" id="e-amount" min="0" step="0.01" placeholder="0.00" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">核心摘要/备注</label>
+                    <input type="text" id="e-note" placeholder="如：五一促销爆品投流推广" class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2">
+                </div>
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeExpenseModal()" class="px-4 py-2 border border-silver-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-gold-600 hover:bg-gold-700 text-white rounded-xl text-xs font-medium">存入台账</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-visit" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden modal-animate opacity-0">
+        <div class="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl scale-95 transition-transform duration-300 max-h-[90vh] overflow-y-auto">
+            <h3 id="visitModalTitle" class="text-sm font-bold text-gray-900 mb-4">初诊业务档案配置中心</h3>
+            <form id="visitForm" onsubmit="saveVisitForm(event)" class="space-y-4">
+                <input type="hidden" id="v-id">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">归属结算周期（月份）</label>
+                        <input type="month" id="v-date" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">医疗核心大类</label>
+                        <select id="v-category" required class="w-full text-xs border border-silver-200 rounded-xl px-3 py-2 bg-white">
+                            <option value="脱毛护理">脱毛护理</option>
+                            <option value="皮肤项目">皮肤项目</option>
+                            <option value="注射项目">注射项目</option>
+                            <option value="手术项目">手术项目</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="border border-silver-200 rounded-xl p-4 bg-silver-100/50">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-bold text-gray-700"><i class="fa-solid fa-layer-group mr-1"></i>关联细分项目明细账</span>
+                        <button type="button" onclick="addVisitSubItemField()" class="text-gold-600 hover:text-gold-700 text-xs font-medium"><i class="fa-solid fa-circle-plus mr-1"></i>追加细分项</button>
+                    </div>
+                    <div id="subItemsContainer" class="space-y-2">
+                        </div>
+                    <div class="mt-3 pt-2 border-t border-silver-200 flex justify-between items-center text-xs font-bold text-gray-800">
+                        <span>小计联动动态计算：</span>
+                        <span class="text-gold-600" id="modal-subtotal-display">¥0.00</span>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-2 pt-2">
+                    <button type="button" onclick="closeVisitModal()" class="px-4 py-2 border border-silver-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-gold-600 hover:bg-gold-700 text-white rounded-xl text-xs font-medium">确认保全并应用</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modal-zoom-chart" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex flex-col items-center justify-center hidden p-4 md:p-8">
+        <button onclick="closeZoomChart()" class="absolute top-4 right-4 text-white text-xl hover:text-gold-200 transition-colors"><i class="fa-solid fa-circle-xmark"></i></button>
+        <div class="w-full max-w-4xl bg-white rounded-3xl p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+            <div class="md:col-span-1 flex flex-col justify-center">
+                <h3 class="text-base font-bold text-gray-900 mb-2"><i class="fa-solid fa-chart-pie mr-2 text-gold-500"></i>品类贡献及细分架构探针</h3>
+                <p class="text-xs text-gray-400 mb-6">点击图表色块可动态联动展示其包含的具体转化细节</p>
+                <div id="zoomChartDetailsPanel" class="space-y-2 text-xs">
+                    </div>
+            </div>
+            <div class="md:col-span-2 relative w-full aspect-square max-h-[450px] mx-auto">
+                <canvas id="zoomedCategoryPieChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-confirm" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white rounded-2xl w-full max-w-xs p-5 shadow-2xl text-center">
+            <div class="w-10 h-10 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3 text-lg">
+                <i class="fa-solid fa-circle-exclamation"></i>
+            </div>
+            <h4 class="text-xs font-bold text-gray-900 mb-1" id="confirmTitle">高危动作确认</h4>
+            <p class="text-[11px] text-gray-400 mb-4" id="confirmMessage">此操作引发的数据变更将同步影响到所有链路统计。</p>
+            <div class="flex justify-center space-x-2">
+                <button id="confirmCancelBtn" class="px-3 py-1.5 border border-silver-200 rounded-lg text-xs text-gray-600 hover:bg-gray-50">取消</button>
+                <button id="confirmOkBtn" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-medium">确认执行</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+
+    <script>
+        /**
+         * 面向对象高聚合核心数据状态机
+         */
+        const AppState = {
+            platforms: [],
+            expenses: [],
+            firstVisits: [],
+            logs: [],
+            settings: {
+                githubToken: '',
+                gistId: '',
+                mode: 'admin'
+            },
+            recycleBin: {
+                expenses: [],
+                firstVisits: []
+            },
+            ui: {
+                currentTab: 'dashboard',
+                selectedMonths: [],
+                expensePage: 1,
+                visitPage: 1,
+                pageSize: 5
+            }
+        };
+
+        // 全局图表句柄缓存
+        let mainPieChart = null;
+        let zoomedPieChart = null;
+
+        /**
+         * 生命周期锚点：系统初始化装载
+         */
+        window.addEventListener('DOMContentLoaded', () => {
+            parseURLParameters();
+            loadStateFromLocalStorage();
+            
+            if (AppState.platforms.length === 0 && AppState.expenses.length === 0 && AppState.firstVisits.length === 0) {
+                generateProfessionalDemoData();
+            }
+
+            initializeMonthFilters();
+            applyPermissionMode();
+            renderAllViews();
+            pushLog('System', '系统就绪，成功装载并渲染独立原子数据。');
+        });
+
+        /**
+         * 高阶鉴权：解析解析 URL 携带的降权指令或魔术令牌
+         */
+        function parseURLParameters() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('mode') === 'readonly') {
+                AppState.settings.mode = 'readonly';
+            }
+            
+            // 解析数据魔术链接
+            if (window.location.hash.startsWith('#config=')) {
+                try {
+                    const base64Data = window.location.hash.split('#config=')[1];
+                    const decoded = JSON.parse(atob(base64Data));
+                    if (decoded.t) AppState.settings.githubToken = decoded.t;
+                    if (decoded.g) AppState.settings.gistId = decoded.g;
+                    showToast('已通过魔术连接自动补全鉴权配置', 'success');
+                } catch (e) {
+                    showToast('魔术链接数据损毁或非法', 'error');
+                }
+            }
+        }
+
+        /**
+         * 持久化封装：从本地缓存或云恢复状态
+         */
+        function loadStateFromLocalStorage() {
+            const raw = localStorage.getItem('MED_MARKETING_DATA');
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    Object.assign(AppState, parsed);
+                } catch (e) {
+                    pushLog('Error', '缓存实体解析失败，回滚全新上下文空间。');
+                }
+            }
+            // 独立加载 Token 及 Gist 字段，保证安全性与复用性
+            AppState.settings.githubToken = localStorage.getItem('MED_CFG_TOKEN') || '';
+            AppState.settings.gistId = localStorage.getItem('MED_CFG_GIST') || '';
+        }
+
+        function saveStateToLocalStorage() {
+            localStorage.setItem('MED_MARKETING_DATA', JSON.stringify({
+                platforms: AppState.platforms,
+                expenses: AppState.expenses,
+                firstVisits: AppState.firstVisits,
+                logs: AppState.logs,
+                recycleBin: AppState.recycleBin
+            }));
+        }
+
+        /**
+         * 品质卓越：自动注入严密咬合的医美示范数据集
+         */
+        function generateProfessionalDemoData() {
+            AppState.platforms = [
+                { id: 'P001', name: '美团点评', account: '旗舰总店-运营账户' },
+                { id: 'P002', name: '抖音本地生活', account: '千川大客推广账户' },
+                { id: 'P003', name: '小红书种草', account: 'KOL矩阵投流号' }
+            ];
+
+            AppState.expenses = [
+                { id: 'E001', date: '2026-05-01', platformId: 'P001', amount: 12000, note: '五一劳动节档期美团搜索展位曝光包' },
+                { id: 'E002', date: '2026-05-10', platformId: 'P002', amount: 25000, note: '皮肤大类：超声炮专场信息流大卡投放' },
+                { id: 'E003', date: '2026-05-15', platformId: 'P003', amount: 8500, note: '手术大类：隆鼻博主KOL置换与铺量投放' },
+                { id: 'E004', date: '2026-04-20', platformId: 'P001', amount: 15000, note: '四月淡季引流款团购霸屏大包' }
+            ];
+
+            AppState.firstVisits = [
+                {
+                    id: 'V001',
+                    date: '2026-05',
+                    category: '皮肤项目',
+                    items: [
+                        { name: '超声炮升级款', count: 12, price: 2500 },
+                        { name: '光子嫩肤全模式', count: 45, price: 399 }
+                    ],
+                    totalAmount: 47955
+                },
+                {
+                    id: 'V002',
+                    date: '2026-05',
+                    category: '注射项目',
+                    items: [
+                        { name: '玻尿酸塑形款', count: 8, price: 3800 },
+                        { name: '除皱瘦脸针', count: 20, price: 980 }
+                    ],
+                    totalAmount: 50000
+                },
+                {
+                    id: 'V003',
+                    date: '2026-04',
+                    category: '脱毛护理',
+                    items: [
+                        { name: '冰点脱毛包干季', count: 60, price: 199 }
+                    ],
+                    totalAmount: 11940
+                }
+            ];
+            saveStateToLocalStorage();
+        }
+
+        /**
+         * 动态初始化提取月份过滤器选项
+         */
+        function initializeMonthFilters() {
+            const monthsSet = new Set();
+            AppState.expenses.forEach(e => monthsSet.add(e.date.substring(0, 7)));
+            AppState.firstVisits.forEach(v => monthsSet.add(v.date));
+            
+            // 若数据为空则兜底补充当前月
+            if (monthsSet.size === 0) {
+                monthsSet.add(new Date().toISOString().substring(0, 7));
+            }
+
+            const sortedMonths = Array.from(monthsSet).sort().reverse();
+            AppState.ui.selectedMonths = [...sortedMonths]; // 默认全选
+
+            const container = document.getElementById('monthFilterContainer');
+            container.innerHTML = '';
+            sortedMonths.forEach(m => {
+                const btn = document.createElement('button');
+                btn.id = `filter-m-${m}`;
+                btn.className = `text-xs px-2.5 py-1 rounded-lg border font-medium transition-all ${AppState.ui.selectedMonths.includes(m) ? 'bg-gold-500 text-white border-gold-600 shadow-sm' : 'bg-white text-gray-600 border-silver-200 hover:bg-gray-50'}`;
+                btn.innerText = m;
+                btn.onclick = () => toggleMonthFilter(m);
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleMonthFilter(month) {
+            const index = AppState.ui.selectedMonths.indexOf(month);
+            if (index > -1) {
+                if (AppState.ui.selectedMonths.length === 1) {
+                    showToast('至少保留一个活跃月份进行横向透视', 'warning');
+                    return;
+                }
+                AppState.ui.selectedMonths.splice(index, 1);
+                document.getElementById(`filter-m-${month}`).className = 'text-xs px-2.5 py-1 rounded-lg border font-medium bg-white text-gray-600 border-silver-200 hover:bg-gray-50';
+            } else {
+                AppState.ui.selectedMonths.push(month);
+                document.getElementById(`filter-m-${month}`).className = 'text-xs px-2.5 py-1 rounded-lg border font-medium bg-gold-500 text-white border-gold-600 shadow-sm';
+            }
+            renderAllViews();
+        }
+
+        /**
+         * 安全沙箱：锁定或释放只读模式权限
+         */
+        function applyPermissionMode() {
+            const isReadonly = AppState.settings.mode === 'readonly';
+            const banner = document.getElementById('readonlyBanner');
+            const badge = document.getElementById('roleBadge');
+            
+            if (isReadonly) {
+                banner.classList.remove('hidden');
+                badge.className = "text-xs bg-silver-200 text-gray-700 border border-silver-300 px-2.5 py-1 rounded-full font-medium";
+                badge.innerHTML = `<i class="fa-solid fa-eye mr-1"></i>只读视图模式`;
+                // 批量休眠所有含 admin-action 类名的按钮
+                document.querySelectorAll('.admin-action').forEach(el => el.classList.add('hidden'));
+            } else {
+                banner.classList.add('hidden');
+                badge.className = "text-xs bg-gold-50 text-gold-700 border border-gold-200 px-2.5 py-1 rounded-full font-medium";
+                badge.innerHTML = `<i class="fa-solid fa-user-shield mr-1"></i>管理员模式`;
+                document.querySelectorAll('.admin-action').forEach(el => el.classList.remove('hidden'));
+            }
+        }
+
+        /**
+         * 调度中心：数据重算与全景视图刷新
+         */
+        function renderAllViews() {
+            calculateAndRenderKPIs();
+            renderPlatformTable();
+            renderExpenses();
+            renderVisits();
+            renderRecycleBin();
+            renderLogsUI();
+        }
+
+        /**
+         * 数据聚合引擎与 Chart 联动
+         */
+        function calculateAndRenderKPIs() {
+            // 1. 过滤流数据
+            const filteredExpenses = AppState.expenses.filter(e => AppState.ui.selectedMonths.includes(e.date.substring(0, 7)));
+            const filteredVisits = AppState.firstVisits.filter(v => AppState.ui.selectedMonths.includes(v.date));
+
+            // 2. 总花费
+            const totalExpense = filteredExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            document.getElementById('kpi-total-expense').innerText = `¥${totalExpense.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+            // 3. 月平均
+            const uniqueMonths = AppState.ui.selectedMonths.length || 1;
+            const avgExpense = totalExpense / uniqueMonths;
+            document.getElementById('kpi-avg-expense').innerText = `¥${avgExpense.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+            // 4. ROI 投产比 (推广总费用 / 初诊总人数)
+            let totalPatients = 0;
+            filteredVisits.forEach(v => {
+                v.items.forEach(sub => totalPatients += Number(sub.count));
+            });
+            const roi = totalPatients > 0 ? (totalExpense / totalPatients) : 0;
+            document.getElementById('kpi-roi').innerText = `¥${roi.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}/人`;
+
+            // 5. 组装品类占比数据结构进行图表渲染
+            const categories = ['脱毛护理', '皮肤项目', '注射项目', '手术项目'];
+            const chartData = categories.map(cat => {
+                return filteredVisits.filter(v => v.category === cat).reduce((sum, v) => sum + v.totalAmount, 0);
+            });
+
+            renderPieCharts(chartData, categories);
+        }
+
+        function renderPieCharts(data, labels) {
+            const config = {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#E6D4A7', '#C5A059', '#A3813B', '#E5E5EA'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                    }
+                }
+            };
+
+            if (mainPieChart) mainPieChart.destroy();
+            const ctx = document.getElementById('categoryPieChart').getContext('2d');
+            mainPieChart = new Chart(ctx, config);
+        }
+
+        /**
+         * 选项卡平滑切页逻辑
+         */
+        function switchTab(targetTabId) {
+            AppState.ui.currentTab = targetTabId;
+            const sections = ['dashboard', 'platforms', 'expenses', 'visits', 'recycle', 'logs', 'settings'];
+            
+            sections.forEach(sec => {
+                const el = document.getElementById(`view-${sec}`);
+                const btn = document.getElementById(`tab-btn-get-${sec}`) || document.getElementById(`tab-btn-${sec}`);
+                
+                if (sec === targetTabId) {
+                    el.classList.remove('hidden');
+                    if(btn) btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left bg-gold-50 text-gold-700 font-semibold shadow-premium";
+                } else {
+                    el.addClassName ? el.addClassName('hidden') : el.classList.add('hidden');
+                    if(btn) btn.className = "flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all w-full text-left text-gray-600 hover:bg-gray-50";
+                }
+            });
+            // 重新刷新权限可见度
+            applyPermissionMode();
+        }
+
+        /**
+         * 核心模块一：多平台控制台（支持直接行内编辑与全渠道汇总）
+         */
+        function renderPlatformTable() {
+            const tbody = document.getElementById('platformTableBody');
+            tbody.innerHTML = '';
+
+            AppState.platforms.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-silver-100/40 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-mono text-gray-400">${p.id}</td>
+                    <td class="p-3 font-medium cursor-pointer text-gray-800" onclick="makeCellEditable(this, '${p.id}', 'name')">${p.name} <i class="fa-solid fa-pen text-[10px] text-gray-300 ml-1"></i></td>
+                    <td class="p-3 text-gray-600 cursor-pointer" onclick="makeCellEditable(this, '${p.id}', 'account')">${p.account} <i class="fa-solid fa-pen text-[10px] text-gray-300 ml-1"></i></td>
+                    <td class="p-3 text-right admin-action">
+                        <button onclick="deletePlatform('${p.id}')" class="text-rose-600 hover:text-rose-800"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function makeCellEditable(cell, id, field) {
+            if (AppState.settings.mode === 'readonly') return;
+            if (cell.querySelector('input')) return;
+
+            const originalText = cell.innerText.trim();
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = originalText;
+            input.className = "text-xs border border-gold-500 rounded px-2 py-0.5 w-full focus:outline-none bg-gold-50/50";
+            
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            input.focus();
+
+            const saveBlock = () => {
+                const val = input.value.trim();
+                if (val && val !== originalText) {
+                    const platform = AppState.platforms.find(p => p.id === id);
+                    platform[field] = val;
+                    pushLog('Action', `行内修改平台 [${id}] 的 ${field} 字段为: ${val}`);
+                    saveStateToLocalStorage();
+                    triggerRealtimeCloudSync();
+                }
+                renderPlatformTable();
+            };
+
+            input.onblur = saveBlock;
+            input.onkeydown = (e) => { if (e.key === 'Enter') saveBlock(); };
+        }
+
+        let isOmniShowing = false;
+        function toggleOmniChannel() {
+            const wrapper = document.getElementById('omniChannelWrapper');
+            isOmniShowing = !isOmniShowing;
+            if (!isOmniShowing) {
+                wrapper.classList.add('hidden');
+                return;
+            }
+            wrapper.classList.remove('hidden');
+            
+            const container = document.getElementById('omniChannelContainer');
+            container.innerHTML = '';
+
+            AppState.platforms.forEach(p => {
+                const cost = AppState.expenses.filter(e => e.platformId === p.id).reduce((sum, e) => sum + Number(e.amount), 0);
+                const block = document.createElement('div');
+                block.className = "bg-white p-3 rounded-lg border border-silver-200";
+                block.innerHTML = `
+                    <div class="text-[10px] font-bold text-gray-500 truncate">${p.name}</div>
+                    <div class="text-xs font-mono font-bold text-gold-700 mt-1">¥${cost.toLocaleString()}</div>
+                `;
+                container.appendChild(block);
+            });
+        }
+
+        function openPlatformModal() {
+            document.getElementById('platformForm').reset();
+            document.getElementById('p-id').value = '';
+            document.getElementById('platformModalTitle').innerText = '注册全新渠道子体';
+            openModal('modal-platform');
+        }
+
+        function closePlatformModal() { closeModal('modal-platform'); }
+
+        function savePlatformForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('p-id').value || 'P' + String(Date.now()).substring(7);
+            const name = document.getElementById('p-name').value;
+            const account = document.getElementById('p-account').value;
+
+            const existingIndex = AppState.platforms.findIndex(p => p.id === id);
+            if(existingIndex > -1) {
+                AppState.platforms[existingIndex] = { id, name, account };
+            } else {
+                AppState.platforms.push({ id, name, account });
+            }
+
+            pushLog('Action', `注册/更新平台实体: ${name} (${account})`);
+            saveStateToLocalStorage();
+            closePlatformModal();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        function deletePlatform(id) {
+            openConfirmModal('毁灭性确认', '清除平台主体将同步切断与部分财务账目的显式绑定，是否执行？', () => {
+                AppState.platforms = AppState.platforms.filter(p => p.id !== id);
+                pushLog('Action', `移除平台实体序列: ${id}`);
+                saveStateToLocalStorage();
+                renderAllViews();
+                triggerRealtimeCloudSync();
+            });
+        }
+
+        /**
+         * 核心模块二：推广费用账目流水管理（分页、批量删除、模糊过滤）
+         */
+        function renderExpenses() {
+            const query = document.getElementById('searchExpense').value.toLowerCase();
+            let data = AppState.expenses;
+
+            if (query) {
+                data = data.filter(e => {
+                    const platform = AppState.platforms.find(p => p.id === e.platformId);
+                    return e.note.toLowerCase().includes(query) || (platform && platform.name.toLowerCase().includes(query));
+                });
+            }
+
+            // 执行轻量级前端分页
+            const total = data.length;
+            const maxPage = Math.ceil(total / AppState.ui.pageSize) || 1;
+            if (AppState.ui.expensePage > maxPage) AppState.ui.expensePage = maxPage;
+
+            const start = (AppState.ui.expensePage - 1) * AppState.ui.pageSize;
+            const pageData = data.slice(start, start + AppState.ui.pageSize);
+
+            const tbody = document.getElementById('expenseTableBody');
+            tbody.innerHTML = '';
+
+            pageData.forEach(e => {
+                const platform = AppState.platforms.find(p => p.id === e.platformId);
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-silver-100/40 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 text-center"><input type="checkbox" class="expense-row-check" value="${e.id}"></td>
+                    <td class="p-3 font-mono">${e.date}</td>
+                    <td class="p-3 font-medium text-gray-800">${platform ? platform.name : '<span class="text-rose-400">未解明孤立媒体</span>'}</td>
+                    <td class="p-3 font-mono font-semibold text-gray-900">¥${Number(e.amount).toFixed(2)}</td>
+                    <td class="p-3 text-gray-500 max-w-xs truncate" title="${e.note}">${e.note || '-'}</td>
+                    <td class="p-3 text-right space-x-2">
+                        <button onclick="openExpenseEdit('${e.id}')" class="text-gold-600 hover:underline admin-action">编辑</button>
+                        <button onclick="deleteExpense('${e.id}')" class="text-rose-600 hover:underline admin-action">删除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 渲染分页器控件
+            const pager = document.getElementById('expensePagination');
+            pager.innerHTML = `
+                <span>展示共计 ${total} 条流水</span>
+                <div class="flex items-center space-x-2">
+                    <button onclick="changeExpensePage(-1)" ${AppState.ui.expensePage === 1 ? 'disabled' : ''} class="px-2 py-1 border border-silver-200 rounded disabled:opacity-40">上页</button>
+                    <span class="font-mono">${AppState.ui.expensePage} / ${maxPage}</span>
+                    <button onclick="changeExpensePage(1)" ${AppState.ui.expensePage === maxPage ? 'disabled' : ''} class="px-2 py-1 border border-silver-200 rounded disabled:opacity-40">下页</button>
+                </div>
+            `;
+            applyPermissionMode();
+        }
+
+        function changeExpensePage(step) {
+            AppState.ui.expensePage += step;
+            renderExpenses();
+        }
+
+        function openExpenseModal() {
+            document.getElementById('expenseForm').reset();
+            document.getElementById('e-id').value = '';
+            document.getElementById('expenseModalTitle').innerText = '登记全新流水账目';
+            
+            // 动态清洗填充下拉菜单
+            const select = document.getElementById('e-platform');
+            select.innerHTML = '';
+            AppState.platforms.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.name} (${p.account})</option>`;
+            });
+
+            openModal('modal-expense');
+        }
+
+        function closeExpenseModal() { closeModal('modal-expense'); }
+
+        function openExpenseEdit(id) {
+            openExpenseModal();
+            const e = AppState.expenses.find(item => item.id === id);
+            document.getElementById('e-id').value = e.id;
+            document.getElementById('e-date').value = e.date;
+            document.getElementById('e-platform').value = e.platformId;
+            document.getElementById('e-amount').value = e.amount;
+            document.getElementById('e-note').value = e.note;
+            document.getElementById('expenseModalTitle').innerText = '修正记账流实体';
+        }
+
+        function saveExpenseForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('e-id').value || 'E' + String(Date.now()).substring(7);
+            const date = document.getElementById('e-date').value;
+            const platformId = document.getElementById('e-platform').value;
+            const amount = Number(document.getElementById('e-amount').value);
+            const note = document.getElementById('e-note').value;
+
+            const dataObj = { id, date, platformId, amount, note };
+            const idx = AppState.expenses.findIndex(item => item.id === id);
+            
+            if(idx > -1) AppState.expenses[idx] = dataObj;
+            else AppState.expenses.unshift(dataObj);
+
+            pushLog('Action', `持久化流水实体: 金额[¥${amount}]`);
+            saveStateToLocalStorage();
+            closeExpenseModal();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        function deleteExpense(id) {
+            const idx = AppState.expenses.findIndex(e => e.id === id);
+            const target = AppState.expenses.splice(idx, 1)[0];
+            AppState.recycleBin.expenses.push(target); // 移交数据沙箱拦截机制
+            
+            pushLog('Action', `逻辑删除流水进入拦截层: ${id}`);
+            saveStateToLocalStorage();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        function bulkDeleteExpenses() {
+            const checkedBoxes = document.querySelectorAll('.expense-row-check:checked');
+            if (checkedBoxes.length === 0) {
+                showToast('尚未圈定任何需要批量切除的流水行', 'warning');
+                return;
+            }
+            openConfirmModal('批量删除防线', `确认批量剔除选中的 ${checkedBoxes.length} 项账务记录？`, () => {
+                checkedBoxes.forEach(box => {
+                    const id = box.value;
+                    const idx = AppState.expenses.findIndex(e => e.id === id);
+                    if (idx > -1) {
+                        const target = AppState.expenses.splice(idx, 1)[0];
+                        AppState.recycleBin.expenses.push(target);
+                    }
+                });
+                pushLog('Action', `执行合并批量物理切除。`);
+                saveStateToLocalStorage();
+                renderAllViews();
+                triggerRealtimeCloudSync();
+            });
+        }
+
+        /**
+         * 核心模块三：客户初诊数据结构化台账管理（核心闭环）
+         */
+        function renderVisits() {
+            const total = AppState.firstVisits.length;
+            const maxPage = Math.ceil(total / AppState.ui.pageSize) || 1;
+            const start = (AppState.ui.visitPage - 1) * AppState.ui.pageSize;
+            const pageData = AppState.firstVisits.slice(start, start + AppState.ui.pageSize);
+
+            const tbody = document.getElementById('visitTableBody');
+            tbody.innerHTML = '';
+
+            pageData.forEach(v => {
+                // 压缩整合子明细便于高密度展现
+                const subDetailHtml = v.items.map(sub => 
+                    `<span class="inline-block bg-silver-100 border border-silver-200 text-gray-700 text-[10px] px-1.5 py-0.5 rounded-md mr-1 mb-1">
+                        ${sub.name} (${sub.count}人 × ¥${sub.price})
+                     </span>`
+                ).join('');
+
+                const patientSum = v.items.reduce((sum, s) => sum + Number(s.count), 0);
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-silver-100/40 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-mono font-medium">${v.date}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded-full text-[10px] bg-gold-50 text-gold-700 font-medium">${v.category}</span></td>
+                    <td class="p-3 max-w-sm whitespace-normal">${subDetailHtml}</td>
+                    <td class="p-3 font-mono font-medium">${patientSum} 人次</td>
+                    <td class="p-3 font-mono font-bold text-gold-600">¥${v.totalAmount.toLocaleString()}</td>
+                    <td class="p-3 text-right space-x-2">
+                        <button onclick="openVisitEdit('${v.id}')" class="text-gold-600 hover:underline admin-action">编辑架构</button>
+                        <button onclick="deleteVisit('${v.id}')" class="text-rose-600 hover:underline admin-action">剔除</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const pager = document.getElementById('visitPagination');
+            pager.innerHTML = `
+                <span>共录入 ${total} 个大类核算档案包</span>
+                <div class="flex items-center space-x-2">
+                    <button onclick="changeVisitPage(-1)" ${AppState.ui.visitPage === 1 ? 'disabled' : ''} class="px-2 py-1 border border-silver-200 rounded disabled:opacity-40">上页</button>
+                    <span class="font-mono">${AppState.ui.visitPage} / ${maxPage}</span>
+                    <button onclick="changeVisitPage(1)" ${AppState.ui.visitPage === maxPage ? 'disabled' : ''} class="px-2 py-1 border border-silver-200 rounded disabled:opacity-40">下页</button>
+                </div>
+            `;
+            applyPermissionMode();
+        }
+
+        function changeVisitPage(step) {
+            AppState.ui.visitPage += step;
+            renderVisits();
+        }
+
+        function openVisitModal() {
+            document.getElementById('visitForm').reset();
+            document.getElementById('v-id').value = '';
+            document.getElementById('subItemsContainer').innerHTML = '';
+            document.getElementById('visitModalTitle').innerText = '规范化定义诊疗数据归档';
+            addVisitSubItemField(); // 默认填充首行
+            openModal('modal-visit');
+        }
+
+        function closeVisitModal() { closeModal('modal-visit'); }
+
+        function addVisitSubItemField(name='', count='', price='') {
+            const container = document.getElementById('subItemsContainer');
+            const rowId = 'sub-row-' + String(Date.now()) + '-' + Math.floor(Math.random()*100);
+            
+            const div = document.createElement('div');
+            div.id = rowId;
+            div.className = "flex items-center space-x-2 animation-all";
+            div.innerHTML = `
+                <input type="text" placeholder="细分项目名称" value="${name}" required class="v-sub-name text-xs border border-silver-200 rounded-lg px-2 py-1 w-full focus:outline-none focus:border-gold-500 bg-white">
+                <input type="number" placeholder="人数" value="${count}" min="1" oninput="recalcModalSubtotal()" required class="v-sub-count text-xs border border-silver-200 rounded-lg px-2 py-1 w-20 focus:outline-none bg-white">
+                <input type="number" placeholder="单客价" value="${price}" min="0" oninput="recalcModalSubtotal()" required class="v-sub-price text-xs border border-silver-200 rounded-lg px-2 py-1 w-24 focus:outline-none bg-white">
+                <button type="button" onclick="removeVisitSubItemField('${rowId}')" class="text-gray-400 hover:text-rose-600 px-1"><i class="fa-solid fa-square-minus text-base"></i></button>
+            `;
+            container.appendChild(div);
+            recalcModalSubtotal();
+        }
+
+        function removeVisitSubItemField(rowId) {
+            const container = document.getElementById('subItemsContainer');
+            if (container.children.length === 1) {
+                showToast('架构完整性约束：原子档案包必须保留至少一条明细账', 'warning');
+                return;
+            }
+            document.getElementById(rowId).remove();
+            recalcModalSubtotal();
+        }
+
+        function recalcModalSubtotal() {
+            let sum = 0;
+            const container = document.getElementById('subItemsContainer');
+            const rows = container.children;
+            for(let row of rows) {
+                const count = row.querySelector('.v-sub-count').value || 0;
+                const price = row.querySelector('.v-sub-price').value || 0;
+                sum += Number(count) * Number(price);
+            }
+            document.getElementById('modal-subtotal-display').innerText = `¥${sum.toLocaleString()}`;
+            return sum;
+        }
+
+        function openVisitEdit(id) {
+            openVisitModal();
+            const v = AppState.firstVisits.find(item => item.id === id);
+            document.getElementById('v-id').value = v.id;
+            document.getElementById('v-date').value = v.date;
+            document.getElementById('v-category').value = v.category;
+            
+            const container = document.getElementById('subItemsContainer');
+            container.innerHTML = '';
+            v.items.forEach(sub => {
+                addVisitSubItemField(sub.name, sub.count, sub.price);
+            });
+            document.getElementById('visitModalTitle').innerText = '修正初诊档案包级联架构';
+            recalcModalSubtotal();
+        }
+
+        function saveVisitForm(e) {
+            e.preventDefault();
+            const id = document.getElementById('v-id').value || 'V' + String(Date.now()).substring(7);
+            const date = document.getElementById('v-date').value;
+            const category = document.getElementById('v-category').value;
+
+            // 抓取并抽取级联输入行数组
+            const items = [];
+            const rows = document.getElementById('subItemsContainer').children;
+            let computedTotal = 0;
+
+            for(let row of rows) {
+                const name = row.querySelector('.v-sub-name').value;
+                const count = Number(row.querySelector('.v-sub-count').value);
+                const price = Number(row.querySelector('.v-sub-price').value);
+                computedTotal += count * price;
+                items.push({ name, count, price });
+            }
+
+            const dataObj = { id, date, category, items, totalAmount: computedTotal };
+            const idx = AppState.firstVisits.findIndex(v => v.id === id);
+
+            if(idx > -1) AppState.firstVisits[idx] = dataObj;
+            else AppState.firstVisits.unshift(dataObj);
+
+            pushLog('Action', `封存初诊档案包: ${category} 联动核算总值[¥${computedTotal}]`);
+            saveStateToLocalStorage();
+            closeVisitModal();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        function deleteVisit(id) {
+            const idx = AppState.firstVisits.findIndex(v => v.id === id);
+            const target = AppState.firstVisits.splice(idx, 1)[0];
+            AppState.recycleBin.firstVisits.push(target);
+            
+            pushLog('Action', `逻辑剔除初诊档案包进入拦截层: ${id}`);
+            saveStateToLocalStorage();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        /**
+         * 快捷闭环表单注入处理器（控制台内嵌）
+         */
+        function handleQuickVisit(e) {
+            e.preventDefault();
+            const date = document.getElementById('quick-visit-date').value;
+            const category = document.getElementById('quick-visit-cat').value;
+            const subName = document.getElementById('quick-item-name').value || '基础标准引流品';
+            const count = Number(document.getElementById('quick-item-count').value || 1);
+            const price = Number(document.getElementById('quick-item-price').value || 0);
+
+            if (!date) { showToast('请指定闭环注入的时间周期切片', 'warning'); return; }
+
+            const totalAmount = count * price;
+            const newVisitPack = {
+                id: 'V' + String(Date.now()).substring(7),
+                date: date,
+                category: category,
+                items: [{ name: subName, count, price }],
+                totalAmount: totalAmount
+            };
+
+            AppState.firstVisits.unshift(newVisitPack);
+            pushLog('Action', `通过控制台快捷漏斗闭环入口成功注入一条 [${category}] 数据`);
+            saveStateToLocalStorage();
+            
+            // 联动重算及自动扩充时间轴
+            initializeMonthFilters();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+            document.getElementById('quickVisitForm').reset();
+            showToast('漏斗闭环注入成功，财务及ROI已自动重平衡', 'success');
+        }
+
+        /**
+         * 核心功能四：数据安全阻尼拦截回收站
+         */
+        function renderRecycleBin() {
+            const eBody = document.getElementById('recycleExpenseBody');
+            eBody.innerHTML = '';
+            if(AppState.recycleBin.expenses.length === 0) {
+                eBody.innerHTML = `<tr><td class="p-3 text-gray-400 text-center italic">费用阻尼区完美无杂质</td></tr>`;
+            } else {
+                AppState.recycleBin.expenses.forEach(e => {
+                    eBody.innerHTML += `
+                        <tr class="hover:bg-rose-50/20 text-[11px]">
+                            <td class="p-2 font-mono text-gray-400">${e.date}</td>
+                            <td class="p-2 font-bold text-gray-700">¥${e.amount}</td>
+                            <td class="p-2 text-gray-400 truncate max-w-xs">${e.note}</td>
+                            <td class="p-2 text-right"><button onclick="restoreRecycle('expense', '${e.id}')" class="text-gold-600 hover:underline"><i class="fa-solid fa-trash-can-arrow-up mr-1"></i>无损回滚恢复</button></td>
+                        </tr>`;
+                });
+            }
+
+            const vBody = document.getElementById('recycleVisitBody');
+            vBody.innerHTML = '';
+            if(AppState.recycleBin.firstVisits.length === 0) {
+                vBody.innerHTML = `<tr><td class="p-3 text-gray-400 text-center italic">初诊档案阻尼区清空状态</td></tr>`;
+            } else {
+                AppState.recycleBin.firstVisits.forEach(v => {
+                    vBody.innerHTML += `
+                        <tr class="hover:bg-rose-50/20 text-[11px]">
+                            <td class="p-2 font-mono text-gray-400">${v.date}</td>
+                            <td class="p-2 font-bold text-gold-700">${v.category}</td>
+                            <td class="p-2 font-mono">¥${v.totalAmount}</td>
+                            <td class="p-2 text-right"><button onclick="restoreRecycle('visit', '${v.id}')" class="text-gold-600 hover:underline"><i class="fa-solid fa-trash-can-arrow-up mr-1"></i>还原原位</button></td>
+                        </tr>`;
+                });
+            }
+        }
+
+        function restoreRecycle(type, id) {
+            if(type === 'expense') {
+                const idx = AppState.recycleBin.expenses.findIndex(item => item.id === id);
+                const obj = AppState.recycleBin.expenses.splice(idx, 1)[0];
+                AppState.expenses.unshift(obj);
+            } else {
+                const idx = AppState.recycleBin.firstVisits.findIndex(item => item.id === id);
+                const obj = AppState.recycleBin.firstVisits.splice(idx, 1)[0];
+                AppState.firstVisits.unshift(obj);
+            }
+            pushLog('Action', `从阻尼拦截区执行数据链条反向冲正还原: ${id}`);
+            saveStateToLocalStorage();
+            renderAllViews();
+            triggerRealtimeCloudSync();
+        }
+
+        /**
+         * 高级特性：全自动高仿真操作合规性审计日志
+         */
+        function pushLog(type, content) {
+            const time = new Date().toLocaleTimeString();
+            AppState.logs.unshift({ id: 'L'+String(Date.now()).substring(8), time, type, content });
+            if (AppState.logs.length > 50) AppState.logs.pop(); // 队列上限防内存溢出
+            saveStateToLocalStorage();
+        }
+
+        function renderLogsUI() {
+            const container = document.getElementById('logConsoleContainer');
+            if(!container) return;
+            container.innerHTML = '';
+            AppState.logs.forEach(l => {
+                const div = document.createElement('div');
+                div.className = "leading-5 tracking-wide";
+                div.innerHTML = `<span class="text-gray-500">[${l.time}]</span> <span class="${l.type==='Error'?'text-rose-400':'text-amber-300'}">font-bold [${l.type}]</span> <span class="text-gray-300">${l.content}</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function clearSystemLogs() {
+            AppState.logs = [];
+            pushLog('System', '合规日志缓冲区已被手动初始化擦除。');
+            renderLogsUI();
+        }
+
+        /**
+         * 高阶互动物理层：饼图无损全屏缩放及高级分析探针
+         */
+        function zoomPieChart() {
+            document.getElementById('modal-zoom-chart').classList.remove('hidden');
+            
+            // 抓取并组装当前处于激活状态的数据切片
+            const filteredVisits = AppState.firstVisits.filter(v => AppState.ui.selectedMonths.includes(v.date));
+            const categories = ['脱毛护理', '皮肤项目', '注射项目', '手术项目'];
+            const chartData = categories.map(cat => filteredVisits.filter(v => v.category === cat).reduce((sum, v) => sum + v.totalAmount, 0));
+
+            const totalVolume = chartData.reduce((a,b)=>a+b, 0) || 1;
+
+            // 动态绘制左侧细节深度钻取仪表
+            const panel = document.getElementById('zoomChartDetailsPanel');
+            panel.innerHTML = '';
+            categories.forEach((cat, idx) => {
+                const val = chartData[idx];
+                const percent = ((val / totalVolume) * 100).toFixed(1);
+                panel.innerHTML += `
+                    <div class="p-2 bg-silver-100 rounded-lg">
+                        <div class="flex justify-between font-bold text-gray-700"><span>${cat}</span><span>${percent}%</span></div>
+                        <div class="text-[10px] text-gray-400 mt-0.5">绝对业绩贡献值: ¥${val.toLocaleString()}</div>
+                    </div>`;
+            });
+
+            if (zoomedPieChart) zoomedPieChart.destroy();
+            const ctx = document.getElementById('zoomedCategoryPieChart').getContext('2d');
+            zoomedPieChart = new Chart(ctx, {
+                type: 'doughnut', // 放大镜视图采用高雅空心环状图
+                data: {
+                    labels: categories,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: ['#E6D4A7', '#C5A059', '#A3813B', '#E5E5EA'],
+                        borderWidth: 4,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right', labels: { color: '#111111' } } }
+                }
+            });
+        }
+
+        function closeZoomChart() { document.getElementById('modal-zoom-chart').classList.add('hidden'); }
+
+        /**
+         * 高级特性：安全持久保存 GitHub 鉴权配置
+         */
+        function saveCloudSettings() {
+            const token = document.getElementById('cfg-github-token').value.trim();
+            const gistId = document.getElementById('cfg-gist-id').value.trim();
+            
+            if(token) localStorage.setItem('MED_CFG_TOKEN', token);
+            if(gistId) localStorage.setItem('MED_CFG_GIST', gistId);
+            
+            AppState.settings.githubToken = token;
+            AppState.settings.gistId = gistId;
+            
+            showToast('云同步凭证成功固化锁入物理层，后续无需重复键入', 'success');
+            pushLog('System', '云端同步参数更新。');
+        }
+
+        /**
+         * 实时云端联动逻辑 (防篡改异步隔离设计)
+         */
+        function triggerRealtimeCloudSync() {
+            const token = AppState.settings.githubToken;
+            const gistId = AppState.settings.gistId;
+            if(!token || !gistId) {
+                // 如果未配置云端，则仅展示绿点提示数据存在本地变更
+                document.getElementById('syncDot').classList.remove('hidden');
+                return;
+            }
+            executeGistCloudUpload(token, gistId);
+        }
+
+        function triggerManualSync() {
+            const token = AppState.settings.githubToken || localStorage.getItem('MED_CFG_TOKEN');
+            const gistId = AppState.settings.gistId || localStorage.getItem('MED_CFG_GIST');
+            if(!token || !gistId) {
+                showToast('请先跳转设置卡片补全云同步 Gist 核心参数', 'warning');
+                switchTab('settings');
+                return;
+            }
+            executeGistCloudUpload(token, gistId);
+        }
+
+        async function executeGistCloudUpload(token, gistId) {
+            const progressBar = document.getElementById('syncProgressBar');
+            progressBar.classList.remove('hidden');
+            pushLog('Cloud', '检测到合法安全通道，开始向 GitHub Gist 编排同步快照...');
+
+            try {
+                const response = await fetch(`https://api.github.com/gists/${gistId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description: "医疗美容机构营销推广核心数据自动流式同步账本",
+                        files: {
+                            "med_marketing_state.json": {
+                                content: JSON.stringify({
+                                    platforms: AppState.platforms,
+                                    expenses: AppState.expenses,
+                                    firstVisits: AppState.firstVisits
+                                }, null, 2)
+                            }
+                        }
+                    })
+                });
+
+                if(!response.ok) throw new Error(`HTTP 状态异常: ${response.status}`);
+                
+                showToast('云端原子数据镜像增量备份同步成功！', 'success');
+                document.getElementById('syncDot').classList.add('hidden');
+                pushLog('Cloud', 'GitHub Gist 远程账本覆写落盘完成。');
+            } catch (err) {
+                showToast(`云同步受阻: ${err.message}`, 'error');
+                pushLog('Error', `远程同步管线爆仓: ${err.message}`);
+            } finally {
+                progressBar.classList.add('hidden');
+            }
+        }
+
+        /**
+         * 跨域超级高保真魔术分发链接生成引擎（极致压缩）
+         */
+        function generateMagicLink(type) {
+            const baseUrl = window.location.origin + window.location.pathname;
+            if(type === 'readonly') {
+                const targetUrl = `${baseUrl}?mode=readonly`;
+                navigator.clipboard.writeText(targetUrl);
+                showToast('已将生成的安全「只读只看」分发链接复制到剪贴板！', 'success');
+            } else {
+                // 将核心设置进行紧凑结构外运
+                const minPayload = {
+                    t: AppState.settings.githubToken || localStorage.getItem('MED_CFG_TOKEN'),
+                    g: AppState.settings.gistId || localStorage.getItem('MED_CFG_GIST')
+                };
+                const base64Str = btoa(JSON.stringify(minPayload));
+                const targetUrl = `${baseUrl}#config=${base64Str}`;
+                navigator.clipboard.writeText(targetUrl);
+                showToast('精简有效的「魔术免配」配置同步链接已成功装载至剪切板！', 'success');
+            }
+        }
+
+        /**
+         * 导出 Excel 报表业务层 (基于 SheetJS 引擎进行全解耦架构)
+         */
+        function exportVisitsToExcel() {
+            const dataToExport = [];
+            AppState.firstVisits.forEach(v => {
+                v.items.forEach(sub => {
+                    dataToExport.push({
+                        '归属月份': v.date,
+                        '医疗大类': v.category,
+                        '细分诊疗项目': sub.name,
+                        '触达并出诊人数': sub.count,
+                        '单客客单价': sub.price,
+                        '合并清算总值': sub.count * sub.price
+                    });
+                });
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "初诊细分综合台账");
+            XLSX.writeFile(workbook, `医美推广初诊明细汇总_${new Date().toISOString().substring(0,10)}.xlsx`);
+            pushLog('Action', '触发了 Excel 物理多维结构数据导出逻辑。');
+        }
+
+        /**
+         * 轻量级统一模态控制网格
+         */
+        function openModal(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('hidden');
+            setTimeout(() => { el.classList.remove('opacity-0'); el.querySelector('.scale-95')?.classList.remove('scale-95'); }, 10);
+        }
+
+        function closeModal(id) {
+            const el = document.getElementById(id);
+            el.classList.add('opacity-0');
+            el.querySelector('div')?.classList.add('scale-95');
+            setTimeout(() => { el.classList.add('hidden'); }, 300);
+        }
+
+        /**
+         * 严密咬合的二次确认交互阻尼窗
+         */
+        function openConfirmModal(title, msg, onOk) {
+            const modal = document.getElementById('modal-confirm');
+            document.getElementById('confirmTitle').innerText = title;
+            document.getElementById('confirmMessage').innerText = msg;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); }, 10);
+
+            const closeBtn = () => {
+                modal.classList.add('opacity-0');
+                setTimeout(() => { modal.classList.add('hidden'); }, 200);
+            };
+
+            document.getElementById('confirmCancelBtn').onclick = closeBtn;
+            document.getElementById('confirmOkBtn').onclick = () => { onOk(); closeBtn(); };
+        }
+
+        /**
+         * 统一多状态全自动消失物理提示器 (Toast)
+         */
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let colorClass = 'bg-white text-gray-800 border-silver-200';
+            let icon = '<i class="fa-solid fa-circle-check text-emerald-500 mr-2"></i>';
+            if(type === 'error') { colorClass = 'bg-rose-50 text-rose-900 border-rose-200'; icon = '<i class="fa-solid fa-circle-xmark text-rose-600 mr-2"></i>'; }
+            if(type === 'warning') { colorClass = 'bg-amber-50 text-amber-900 border-amber-200'; icon = '<i class="fa-solid fa-triangle-exclamation text-amber-600 mr-2"></i>'; }
+
+            toast.className = `flex items-center px-4 py-2.5 rounded-xl border text-xs font-medium shadow-xl pointer-events-auto transition-all duration-300 transform translate-y-2 opacity-0 ${colorClass}`;
+            toast.innerHTML = `${icon}<span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 3500);
+        }
+
+        /**
+         * 全局行内公共全选控制链
+         */
+        function toggleSelectAll(type) {
+            const master = document.getElementById('selectAllExpenses');
+            const rowChecks = document.querySelectorAll('.expense-row-check');
+            rowChecks.forEach(box => box.checked = master.checked);
+        }
+    </script>
+</body>
+</html>
